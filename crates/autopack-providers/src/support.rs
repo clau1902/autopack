@@ -28,14 +28,18 @@ pub const CADDY_STEP: &str = "caddy";
 /// capability, so a step re-copies the binary with `cp`, which does not carry
 /// extended attributes over, and the runtime image takes that copy.
 pub fn caddy_layer(ctx: &mut BuildContext<'_>) -> Layer {
-    if !ctx.has_step(CADDY_STEP) {
-        let step = ctx.step(CADDY_STEP);
-        step.inputs = vec![Layer::image(CADDY_IMAGE)];
-        step.add_command(Command::exec(format!(
-            "cp {CADDY_BIN} /tmp/caddy && mv /tmp/caddy {CADDY_BIN}"
-        )));
+    let mut name = CADDY_STEP.to_string();
+    let mut suffix = 0;
+    while ctx.has_step(&name) || ctx.config.steps.contains_key(&name) {
+        suffix += 1;
+        name = format!("{CADDY_STEP}-{suffix}");
     }
-    Layer::step(CADDY_STEP).including([CADDY_BIN])
+    let step = ctx.step(&name);
+    step.inputs = vec![Layer::image(CADDY_IMAGE)];
+    step.add_command(Command::exec(format!(
+        "cp {CADDY_BIN} /tmp/caddy && mv /tmp/caddy {CADDY_BIN}"
+    )));
+    Layer::step(name).including([CADDY_BIN])
 }
 
 /// Command that runs the generated Caddyfile.

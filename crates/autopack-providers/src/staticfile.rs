@@ -129,6 +129,35 @@ mod tests {
     }
 
     #[test]
+    fn caddy_preparation_avoids_user_step_overrides() {
+        let (_dir, app) = write_app(&[
+            ("index.html", "<h1>hi</h1>"),
+            (
+                "autopack.json",
+                r#"{"steps": {
+                "caddy": {"commands": ["echo user-caddy"]},
+                "caddy-1": {"commands": ["echo user-caddy-one"]}
+            }}"#,
+            ),
+        ]);
+        let analysis = plan_for(&app);
+        let prepared = analysis.plan.step("caddy-2").expect("unclaimed Caddy step");
+        assert_eq!(
+            prepared.inputs[0].image.as_deref(),
+            Some(crate::support::CADDY_IMAGE)
+        );
+        assert!(prepared.commands.iter().any(|command| matches!(
+            command, Command::Exec(exec) if exec.cmd.starts_with("cp /usr/bin/caddy ")
+        )));
+        assert!(analysis
+            .plan
+            .deploy
+            .inputs
+            .iter()
+            .any(|layer| layer.step.as_deref() == Some("caddy-2")));
+    }
+
+    #[test]
     fn prefers_a_public_directory() {
         let (_dir, app) = write_app(&[("public/index.html", ""), ("README.md", "")]);
         let analysis = plan_for(&app);
